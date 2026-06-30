@@ -27,13 +27,14 @@ exhausted thrust** and fades the move back toward VWAP.
 claudeinhood/
   data/         indicators.py (VWAP/SMA/ATR/z-score — pure), alpaca_data.py
   strategy/     base.py (Signal), vwap_reversion.py (the overreaction fade)
-  options/      selector.py (signal -> SPY 0/1-DTE contract)
+  options/      selector.py (pure), alpaca_options.py (live chain + quotes)
+  flow/         base.py (FlowFilter veto), probors.py (REST adapter stub)
   risk/         manager.py (daily stop, sizing, settlement)
   broker/       base.py (interface), alpaca_broker.py, robinhood_broker.py (stub)
-  engine/       runner.py (data -> strategy -> risk -> order -> manage exits)
+  engine/       runner.py (data -> strategy -> flow veto -> risk -> order -> exits)
   backtest/     backtester.py (replay sessions, measure edge)
 scripts/        run_paper.py, backtest.py
-tests/          pure-logic unit tests (indicators, strategy, risk, options)
+tests/          pure-logic + engine wiring tests (35 passing)
 ```
 
 ## The strategy
@@ -65,14 +66,37 @@ python scripts/backtest.py SPY 2026-06-01 2026-06-27
 python scripts/run_paper.py
 ```
 
+## Flow confirmation (ProBors)
+
+`flow/` adds an optional veto: before fading a stretched move, the engine checks
+"where the money's going." If strong **same-direction** options/whale flow is
+behind the move, it's probably real (not an overreaction) and the trade is
+vetoed. Missing/stale flow data fails open (never blocks).
+
+Important: the live engine needs ProBors' **REST API + key** — it cannot call
+the ProBors **MCP** server (MCP tools are interactive, not callable from the
+standalone engine). Congressional-trade data is legally delayed (~45 days) and
+is *not* used for intraday; only timely flow (options/dark-pool/whale) feeds the
+veto. Configure `PROBORS_API_KEY` + `PROBORS_FLOW_ENDPOINT`; otherwise a
+`NullFlowFilter` runs and never vetoes.
+
+## Shadow / dry-run mode
+
+Set `DRY_RUN=true` to run the full loop live (real data, real signals) but place
+**no orders** — it just logs what it *would* do. Best way to watch the strategy
+think before risking anything.
+
 ## Roadmap to live
 
-- [ ] **Data tier**: confirm Alpaca feed (IEX vs SIP). SIP recommended for live —
-      IEX volume gaps skew VWAP.
-- [ ] **Options chain + quotes**: wire an expiries/quote provider so the selector
-      can price 0/1-DTE contracts (Alpaca options data) and size real orders.
-- [ ] **Backtest + paper validation**: run a meaningful sample; tune
-      `VwapReversionParams`; confirm positive expectancy net of slippage.
+- [x] Indicators, strategy, risk, backtester, broker abstraction
+- [x] Alpaca options provider (live chain + quotes + greeks)
+- [x] Flow veto layer + ProBors REST adapter scaffold
+- [x] Dry-run/shadow mode
+- [ ] **Data tier**: confirm Alpaca feed (IEX vs SIP). SIP better for VWAP.
+- [ ] **ProBors**: drop in API key + confirm the flow endpoint/field mapping
+      (`flow/probors.py:_map_response`).
+- [ ] **Backtest + paper validation**: tune `VwapReversionParams`; confirm
+      positive expectancy net of slippage.
 - [ ] **Robinhood adapter**: implement `RobinhoodBroker` (robin_stocks or MCP).
 - [ ] **Go live small** with the 25% daily stop enforced.
 

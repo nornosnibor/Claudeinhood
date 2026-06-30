@@ -20,7 +20,7 @@ except Exception:
     pass
 
 from claudeinhood.broker.alpaca_broker import AlpacaBroker
-from claudeinhood.config import load_config
+from claudeinhood.config import build_flow_filter, load_config
 from claudeinhood.data.alpaca_data import AlpacaData
 from claudeinhood.engine.runner import Engine
 from claudeinhood.risk.manager import RiskManager, RiskState
@@ -52,7 +52,15 @@ def main() -> int:
     # TODO(tomorrow): supply a real expiries provider from the Alpaca options
     # chain so 0/1-DTE selection works. Until then, option entries are skipped
     # for lack of a contract/premium, but the signal + risk loop runs live.
-    engine = Engine(cfg, broker, data, risk, available_expiries_provider=lambda: [])
+    flow = build_flow_filter(cfg)
+    options = None
+    if cfg.trade_options:
+        from claudeinhood.options.alpaca_options import AlpacaOptions
+        options = AlpacaOptions(cfg.alpaca_api_key, cfg.alpaca_secret_key)
+    if cfg.dry_run:
+        print("DRY RUN: signals will be logged, no orders placed.")
+    engine = Engine(cfg, broker, data, risk,
+                    options_provider=options, flow_filter=flow)
     engine.run()
     return 0
 

@@ -31,6 +31,14 @@ class AppConfig:
     # Loop cadence
     poll_seconds: int = field(default_factory=lambda: int(os.getenv("POLL_SECONDS", "30")))
 
+    # Flow confirmation (ProBors REST). Empty -> NullFlowFilter (never vetoes).
+    probors_api_key: str = field(default_factory=lambda: os.getenv("PROBORS_API_KEY", ""))
+    probors_base_url: str = field(default_factory=lambda: os.getenv("PROBORS_BASE_URL", "https://api.probors.com"))
+    probors_flow_endpoint: str = field(default_factory=lambda: os.getenv("PROBORS_FLOW_ENDPOINT", ""))
+
+    # Shadow mode: run the full loop and log signals/vetoes but place NO orders.
+    dry_run: bool = field(default_factory=lambda: _env_bool("DRY_RUN", False))
+
     # Strategy + risk
     strategy: VwapReversionParams = field(default_factory=VwapReversionParams)
     risk: RiskConfig = field(default_factory=lambda: RiskConfig(
@@ -49,3 +57,18 @@ class AppConfig:
 
 def load_config() -> AppConfig:
     return AppConfig()
+
+
+def build_flow_filter(cfg: AppConfig):
+    """Return a configured ProBors filter if credentials+endpoint are present,
+    else a NullFlowFilter (never vetoes)."""
+    from .flow.base import NullFlowFilter
+    from .flow.probors import ProBorsFlowFilter
+
+    if cfg.probors_api_key and cfg.probors_flow_endpoint:
+        return ProBorsFlowFilter(
+            api_key=cfg.probors_api_key,
+            base_url=cfg.probors_base_url,
+            flow_endpoint=cfg.probors_flow_endpoint,
+        )
+    return NullFlowFilter()

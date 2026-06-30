@@ -3,6 +3,7 @@ from datetime import date
 from claudeinhood.options.selector import (
     nearest_expiry,
     occ_symbol,
+    parse_occ,
     pick_strike,
     select_contract,
 )
@@ -12,6 +13,15 @@ from claudeinhood.strategy.base import Side
 def test_occ_symbol_format():
     s = occ_symbol("SPY", date(2026, 6, 30), "C", 540.0)
     assert s == "SPY260630C00540000"
+
+
+def test_parse_occ_roundtrip():
+    s = occ_symbol("SPY", date(2026, 6, 30), "P", 537.5)
+    underlying, expiry, right, strike = parse_occ(s)
+    assert underlying == "SPY"
+    assert expiry == date(2026, 6, 30)
+    assert right == "P"
+    assert strike == 537.5
 
 
 def test_nearest_expiry_prefers_0dte():

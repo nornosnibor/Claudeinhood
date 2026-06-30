@@ -18,7 +18,8 @@ from typing import Optional
 from ..broker.base import Broker, OrderSide
 from ..config import AppConfig
 from ..data.alpaca_data import AlpacaData
-from ..options.selector import select_contract
+from ..flow.base import FlowFilter, NullFlowFilter, flow_allows
+from ..options.selector import OptionsProvider
 from ..risk.manager import RiskManager
 from ..strategy.base import Side, Signal
 from ..strategy.vwap_reversion import VwapReversionStrategy
@@ -44,7 +45,8 @@ class Engine:
         broker: Broker,
         data: AlpacaData,
         risk: RiskManager,
-        available_expiries_provider=None,
+        options_provider: Optional[OptionsProvider] = None,
+        flow_filter: Optional[FlowFilter] = None,
     ):
         self.cfg = config
         self.broker = broker
@@ -52,9 +54,14 @@ class Engine:
         self.risk = risk
         self.strategy = VwapReversionStrategy(config.strategy)
         self.open_trade: Optional[OpenTrade] = None
-        # Callable returning the day's listed expiries; supplied by the runner
-        # script (kept injectable so tests don't need a live chain).
-        self._expiries = available_expiries_provider
+        # Shadow mode: evaluate + log intended trades, place no orders.
+        self.dry_run = config.dry_run
+        # Flow-confirmation veto layer. Defaults to a no-op (never vetoes) until
+        # a real provider (e.g. ProBors REST) is wired in.
+        self.flow = flow_filter or NullFlowFilter()
+        # Quotes + selects a 0/1-DTE contract. None -> option entries are skipped
+        # (e.g. in dry-run/equity-only or tests without a live chain).
+        self.options = options_provider
 
     # ---- one iteration of the loop -------------------------------------
     def step(self) -> None:
@@ -85,12 +92,25 @@ class Engine:
             log.debug("flat: %s", signal.reason)
             return
 
-        log.info("signal %s conf=%.2f (%s)", signal.side.value,
-                 signal.confidence, signal.reason)
+        # Flow veto: don't fade a stretched move that strong same-direction flow
+        # says is real (i.e. not an overreaction).
+        reading = self.flow.read(self.cfg.primary_symbol)
+        allowed, flow_why = flow_allows(signal.side, reading)
+        if not allowed:
+            log.info("signal %s vetoed by flow: %s", signal.side.value, flow_why)
+            return
+
+        log.info("signal %s conf=%.2f (%s) | %s", signal.side.value,
+                 signal.confidence, signal.reason, flow_why)
         self._enter(signal, underlying_price=signal.entry_ref)
 
     # ---- entry ----------------------------------------------------------
     def _enter(self, signal: Signal, underlying_price: float) -> None:
+        if self.dry_run:
+            log.info("[DRY RUN] would enter %s @ %.2f target=%.2f stop=%.2f (%s)",
+                     signal.side.value, signal.entry_ref, signal.target,
+                     signal.stop, signal.reason)
+            return
         if not self.cfg.trade_options:
             # Equity path (e.g. for non-SPY shares). Size by capital only.
             qty = self.risk.size_option_order(
@@ -109,19 +129,20 @@ class Engine:
             log.info("equity order: %s", res)
             return
 
-        expiries = self._expiries() if self._expiries else []
-        choice = select_contract(
+        if self.options is None:
+            log.info("no options provider configured; skipping option entry")
+            return
+        choice = self.options.select(
             self.cfg.primary_symbol, underlying_price, signal.side,
-            date.today(), expiries, max_dte=self.cfg.max_dte,
+            date.today(), self.cfg.max_dte,
         )
         if choice is None:
-            log.info("no suitable expiry available")
+            log.info("no suitable contract available")
             return
 
         premium = choice.est_premium
         if premium is None:
-            log.warning("no premium quote for %s; skipping (wire option quotes)",
-                        choice.occ_symbol)
+            log.warning("no premium quote for %s; skipping", choice.occ_symbol)
             return
 
         qty = self.risk.size_option_order(

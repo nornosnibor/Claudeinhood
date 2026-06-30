@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from typing import Optional, Sequence
+from typing import Optional, Protocol, Sequence
 
 from ..strategy.base import Side
 
@@ -32,6 +32,19 @@ def occ_symbol(underlying: str, expiry: date, right: str, strike: float) -> str:
     yymmdd = expiry.strftime("%y%m%d")
     strike_int = int(round(strike * 1000))
     return f"{underlying}{yymmdd}{right}{strike_int:08d}"
+
+
+def parse_occ(symbol: str) -> tuple[str, date, str, float]:
+    """Inverse of occ_symbol. Returns (underlying, expiry, right, strike).
+
+    OCC format: <ROOT><YYMMDD><C|P><strike*1000 zero-padded to 8>.
+    """
+    strike = int(symbol[-8:]) / 1000.0
+    right = symbol[-9]
+    yymmdd = symbol[-15:-9]
+    underlying = symbol[:-15]
+    expiry = datetime.strptime(yymmdd, "%y%m%d").date()
+    return underlying, expiry, right, strike
 
 
 def nearest_expiry(today: date, expiries: Sequence[date], max_dte: int = 1) -> Optional[date]:
@@ -83,3 +96,12 @@ def select_contract(
         strike=strike,
         right=right,
     )
+
+
+class OptionsProvider(Protocol):
+    """Returns a fully-quoted contract (premium + delta filled) for a signal."""
+
+    def select(
+        self, underlying: str, underlying_price: float, side: Side,
+        today: date, max_dte: int,
+    ) -> Optional[OptionChoice]: ...
