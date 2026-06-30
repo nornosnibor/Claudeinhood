@@ -42,7 +42,9 @@ def main() -> int:
     broker = AlpacaBroker(cfg.alpaca_api_key, cfg.alpaca_secret_key, paper=True)
     data = AlpacaData(cfg.alpaca_api_key, cfg.alpaca_secret_key, feed=cfg.alpaca_data_feed)
     options = AlpacaOptions(cfg.alpaca_api_key, cfg.alpaca_secret_key)
-    journal = Journal("journal/orb_spy.jsonl")
+    # Tracked path (not the gitignored journal/ dir) so the forward-test record
+    # survives container reclamation when committed.
+    journal = Journal("forward_test/orb_spy.jsonl")
 
     acct = broker.get_account()
     # Size as if the account were $500 even though paper seeds $100k, so behavior
