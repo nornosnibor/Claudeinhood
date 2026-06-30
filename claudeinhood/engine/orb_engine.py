@@ -75,7 +75,9 @@ class ORBPaperEngine:
         acct = self.broker.get_account()
         self._roll_session(now.date(), acct.equity, acct.settled_cash)
 
-        df_all = self.data.recent_bars(self.cfg.primary_symbol, self.cfg.bar_minutes)
+        # 600-min lookback always reaches the 9:30 open, even on a late start.
+        df_all = self.data.recent_bars(self.cfg.primary_symbol, self.cfg.bar_minutes,
+                                       lookback_minutes=600)
         df = AlpacaData.current_session_only(df_all)
         if df.empty:
             return
