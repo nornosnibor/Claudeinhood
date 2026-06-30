@@ -1,0 +1,51 @@
+"""Configuration loading from environment + optional YAML override."""
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass, field
+
+from .risk.manager import RiskConfig
+from .strategy.vwap_reversion import VwapReversionParams
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    v = os.getenv(name)
+    if v is None:
+        return default
+    return v.strip().lower() in {"1", "true", "yes", "on"}
+
+
+@dataclass
+class AppConfig:
+    # Broker / data
+    alpaca_api_key: str = field(default_factory=lambda: os.getenv("ALPACA_API_KEY", ""))
+    alpaca_secret_key: str = field(default_factory=lambda: os.getenv("ALPACA_SECRET_KEY", ""))
+    alpaca_paper: bool = field(default_factory=lambda: _env_bool("ALPACA_PAPER", True))
+    alpaca_data_feed: str = field(default_factory=lambda: os.getenv("ALPACA_DATA_FEED", "iex"))
+
+    # Trading universe
+    primary_symbol: str = field(default_factory=lambda: os.getenv("PRIMARY_SYMBOL", "SPY"))
+    trade_options: bool = field(default_factory=lambda: _env_bool("TRADE_OPTIONS", True))
+    max_dte: int = field(default_factory=lambda: int(os.getenv("MAX_DTE", "1")))
+
+    # Loop cadence
+    poll_seconds: int = field(default_factory=lambda: int(os.getenv("POLL_SECONDS", "30")))
+
+    # Strategy + risk
+    strategy: VwapReversionParams = field(default_factory=VwapReversionParams)
+    risk: RiskConfig = field(default_factory=lambda: RiskConfig(
+        max_daily_loss_pct=float(os.getenv("MAX_DAILY_LOSS_PCT", "0.25")),
+        max_risk_per_trade_pct=float(os.getenv("MAX_RISK_PER_TRADE_PCT", "0.10")),
+        max_position_pct=float(os.getenv("MAX_POSITION_PCT", "0.50")),
+        max_trades_per_day=int(os.getenv("MAX_TRADES_PER_DAY", "0")),
+    ))
+
+    def validate_for_live(self) -> list[str]:
+        problems = []
+        if not self.alpaca_api_key or not self.alpaca_secret_key:
+            problems.append("ALPACA_API_KEY / ALPACA_SECRET_KEY are not set")
+        return problems
+
+
+def load_config() -> AppConfig:
+    return AppConfig()

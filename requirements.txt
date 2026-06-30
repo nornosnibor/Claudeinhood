@@ -1,0 +1,14 @@
+# Core
+pandas>=2.0
+numpy>=1.24
+python-dotenv>=1.0
+PyYAML>=6.0
+
+# Data + paper/live execution (Alpaca)
+alpaca-py>=0.20
+
+# Robinhood live execution (wire up tomorrow). Unofficial, optional.
+# robin_stocks>=3.0
+
+# Dev
+pytest>=7.4
