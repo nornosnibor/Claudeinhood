@@ -51,6 +51,18 @@ def atr(df: pd.DataFrame, window: int = 14) -> pd.Series:
     return tr.rolling(window=window, min_periods=1).mean()
 
 
+def rsi(series: pd.Series, window: int = 14) -> pd.Series:
+    """Wilder's RSI. <30 oversold, >70 overbought by convention."""
+    delta = series.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    avg_gain = gain.ewm(alpha=1 / window, adjust=False).mean()
+    avg_loss = loss.ewm(alpha=1 / window, adjust=False).mean()
+    rs = avg_gain / avg_loss.replace(0, np.nan)
+    out = 100 - 100 / (1 + rs)
+    return out.fillna(50.0)
+
+
 def rolling_zscore(series: pd.Series, window: int) -> pd.Series:
     """How many standard deviations the latest value sits from its rolling mean."""
     mean = series.rolling(window=window, min_periods=window).mean()
