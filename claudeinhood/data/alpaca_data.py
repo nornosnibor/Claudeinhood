@@ -22,6 +22,27 @@ class AlpacaData:
         self._client = StockHistoricalDataClient(api_key, secret_key)
         self.feed = feed
 
+    def recent_bars(self, symbol: str, bar_minutes: int = 5, lookback_minutes: int = 420) -> pd.DataFrame:
+        """Recent bars at an arbitrary minute timeframe (e.g. 5-min for ORB)."""
+        from alpaca.data.enums import DataFeed
+        from alpaca.data.requests import StockBarsRequest
+        from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
+
+        end = datetime.now(timezone.utc)
+        start = end - timedelta(minutes=lookback_minutes)
+        req = StockBarsRequest(
+            symbol_or_symbols=symbol,
+            timeframe=TimeFrame(bar_minutes, TimeFrameUnit.Minute),
+            start=start, end=end, feed=DataFeed(self.feed),
+        )
+        bars = self._client.get_stock_bars(req)
+        df = bars.df
+        if df.empty:
+            return df
+        if isinstance(df.index, pd.MultiIndex):
+            df = df.xs(symbol, level="symbol")
+        return df[["open", "high", "low", "close", "volume"]].copy()
+
     def recent_minute_bars(self, symbol: str, lookback_minutes: int = 240) -> pd.DataFrame:
         """Return recent 1-minute bars for the current session as a DataFrame
         indexed by timestamp with columns: open, high, low, close, volume.

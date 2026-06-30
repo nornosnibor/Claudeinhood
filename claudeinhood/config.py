@@ -39,6 +39,15 @@ class AppConfig:
     # Shadow mode: run the full loop and log signals/vetoes but place NO orders.
     dry_run: bool = field(default_factory=lambda: _env_bool("DRY_RUN", False))
 
+    # ORB paper engine
+    bar_minutes: int = field(default_factory=lambda: int(os.getenv("BAR_MINUTES", "5")))
+    orb_minutes: int = field(default_factory=lambda: int(os.getenv("ORB_MINUTES", "15")))
+    orb_volume_mult: float = field(default_factory=lambda: float(os.getenv("ORB_VOLUME_MULT", "1.2")))
+    # Premium-based exits (Ronny's rules): take +target, stop at -stop, never expiry.
+    target_premium_pct: float = field(default_factory=lambda: float(os.getenv("TARGET_PREMIUM_PCT", "0.20")))
+    stop_premium_pct: float = field(default_factory=lambda: float(os.getenv("STOP_PREMIUM_PCT", "0.22")))
+    max_trades_per_session: int = field(default_factory=lambda: int(os.getenv("MAX_TRADES_PER_SESSION", "1")))
+
     # Strategy + risk
     strategy: VwapReversionParams = field(default_factory=VwapReversionParams)
     risk: RiskConfig = field(default_factory=lambda: RiskConfig(

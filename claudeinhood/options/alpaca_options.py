@@ -68,6 +68,26 @@ class AlpacaOptions:
         d = getattr(g, "delta", None) if g else None
         return float(d) if d is not None else None
 
+    def latest_mid(self, occ_symbol: str) -> Optional[float]:
+        """Current quote mid for an option, for premium-based exit monitoring."""
+        from alpaca.data.requests import OptionLatestQuoteRequest
+        try:
+            resp = self._client.get_option_latest_quote(
+                OptionLatestQuoteRequest(symbol_or_symbols=occ_symbol))
+            q = resp.get(occ_symbol) if isinstance(resp, dict) else resp
+            bid = float(getattr(q, "bid_price", 0) or 0)
+            ask = float(getattr(q, "ask_price", 0) or 0)
+            if bid <= 0 and ask <= 0:
+                return None
+            if bid <= 0:
+                return ask
+            if ask <= 0:
+                return bid
+            return round((bid + ask) / 2, 2)
+        except Exception:
+            log.exception("latest_mid failed for %s", occ_symbol)
+            return None
+
     def select(
         self, underlying: str, underlying_price: float, side: Side,
         today: date, max_dte: int,
