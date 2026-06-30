@@ -51,6 +51,15 @@ def atr(df: pd.DataFrame, window: int = 14) -> pd.Series:
     return tr.rolling(window=window, min_periods=1).mean()
 
 
+def efficiency_ratio(series: pd.Series, window: int = 10) -> pd.Series:
+    """Kaufman Efficiency Ratio: net move / total path over ``window`` bars.
+    ~1.0 = clean trend, ~0.0 = chop. The regime gate for momentum entries.
+    """
+    change = (series - series.shift(window)).abs()
+    volatility = series.diff().abs().rolling(window).sum()
+    return (change / volatility.replace(0, np.nan)).fillna(0.0)
+
+
 def rsi(series: pd.Series, window: int = 14) -> pd.Series:
     """Wilder's RSI. <30 oversold, >70 overbought by convention."""
     delta = series.diff()
