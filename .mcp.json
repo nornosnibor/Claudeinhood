@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "probors": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://probors-service.bc-smart.com/mcp",
+        "--header",
+        "Authorization: Bearer ${PROBORS_API_KEY}"
+      ]
+    }
+  }
+}

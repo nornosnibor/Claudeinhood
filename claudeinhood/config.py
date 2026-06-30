@@ -33,7 +33,7 @@ class AppConfig:
 
     # Flow confirmation (ProBors REST). Empty -> NullFlowFilter (never vetoes).
     probors_api_key: str = field(default_factory=lambda: os.getenv("PROBORS_API_KEY", ""))
-    probors_base_url: str = field(default_factory=lambda: os.getenv("PROBORS_BASE_URL", "https://api.probors.com"))
+    probors_base_url: str = field(default_factory=lambda: os.getenv("PROBORS_BASE_URL", "https://probors-service.bc-smart.com"))
     probors_flow_endpoint: str = field(default_factory=lambda: os.getenv("PROBORS_FLOW_ENDPOINT", ""))
 
     # Shadow mode: run the full loop and log signals/vetoes but place NO orders.
